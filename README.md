@@ -1,5 +1,4 @@
 ##  Tencent IOT SDK for rt-thread Package 
-
 ## 1 介绍
 
 Tencent IOT SDK for rt-thread Package 是基于[腾讯云设备端C-SDK]([腾讯云C-SDK](https://github.com/tencentyun/qcloud-iot-sdk-embedded-c.gitt))在RThread环境开发的软件包，腾讯物联网设备端 C-SDK 依靠安全且性能强大的数据通道，为物联网领域开发人员提供终端和云端的双向通信能力。C-SDK V3.0.0版本以后同时支持腾讯的现有的两个物联网平台，[物联网通信平台](https://cloud.tencent.com/product/iothub)和[物联网开发平台](https://cloud.tencent.com/product/iotexplorer)。
@@ -51,32 +50,47 @@ Tencent IOT SDK for rt-thread Package 是基于[腾讯云设备端C-SDK]([腾讯
 
 - 选项说明
 `Select Tencent IOT platform`：选择物联网通信平台（Iot_hub）还是物联网开发平台（Iot_explorer）。
+
 `Config Product Id`：配置产品ID，平台创建生成。
+
 `Config Device Name`：配置设备名，平台创建生成。
+
 `Config Device Secret`：配置设备密钥，平台创建生成，考虑到嵌入式设备大多没有文件系统，暂时没有支持证书设备配置。
+
 `Enable dynamic register`：是否使能[设备动态注册]()，若使能，则需要配置产品密钥，解决一型一密的场景。
+
 `Enable err log upload`：是否使能错误日志上传云端。
+
 `Enable TLS/DTLS`： 是否使能TLS，若使能，则会关联选中mbedTLS软件包。
 
 - 物联网通信平台配置：
+
 `Enable MQTT`：通信协议是否选用MQTT。
+
  ----`Enable shadow`：选用MQTT协议的前提下是否选用[影子协议](https://cloud.tencent.com/document/product/634/11918)。
+ 
 `Enable COAP`：通信协议是否选用COAP。
+
 `Enable SCENARIOS`：是否使能场景示例，若使能，可以选择对应通信协议下的场景示例。
+
 `Version`：软件包版本选择
 
 - 物联网开发平台配置：
+
 `Enable data template`：是否使能[数据模板](https://cloud.tencent.com/document/product/1081/34916)。
+
  ----`Enable event`：选用数据模板的前提下是否使能事件功能。
+ 
 `Enable SCENARIOS`：是否使能场景示例，若使能，可选择数据模板的智能灯场景示例。
+
 `Version`：软件包版本选择
 
 - 特别说明：使能TLS/DTLS后，会关联选用mbedTLS软件包，但会指定配置头文件为 `tc_tls_config.h`而非软件包的配置头文件`tls_config.h`， `tc_tls_config.h`进一步优化了资源，主要是对[非证书设备认证]()裁剪了X509证书。
 >! 如果编译报错，请在`tls_client.h`、`tls_client.c`、`proto_mbedtls.c`这三个文件用到X509证书相关的地方增加编译宏 `MBEDTLS_X509_CRT_PARSE_C`隔离。
 
 - 相关链接
- [物联网开发平台SDK说明文档](https://github.com/tencentyun/qcloud-iot-sdk-embedded-c/blob/master/docs/物联网开发平台.md)
-[物联网通信平台SDK说明文档](https://github.com/tencentyun/qcloud-iot-sdk-embedded-c/blob/master/docs/物联网通信.md)
+[物联网开发平台SDK说明文档](https://github.com/tencentyun/qcloud-iot-sdk-embedded-c/blob/master/docs/物联网开发平台.md)
+ [物联网通信平台SDK说明文档](https://github.com/tencentyun/qcloud-iot-sdk-embedded-c/blob/master/docs/物联网通信.md)
 
 - 使用 `pkgs --update` 命令下载软件包
 
