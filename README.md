@@ -20,16 +20,12 @@ Tencent IOT SDK for rt-thread Package 是基于[腾讯云设备端C-SDK]([腾讯
 | README.md       | 软件包使用说明 |
 | SConscript      | RT-Thread 默认的构建脚本 |
 
-### 1.3 SDK接口说明
-以下是C SDK 提供的功能和对应 API，用于设备端编写业务逻辑，API 接口暂不支持多线程调用，在多线程环境下，请勿跨线程调用。 更加详细的接口功能说明请查看 [include/tc_iot_export.h](include/tc_iot_export.h) 中的注释。
-
-
-### 1.4 许可证
+### 1.3 许可证
 
 沿用`qcloud-iot-sdk-embedded-c`许可协议Apache 2.0。
 
 ## 2 软件包使用
-### 2.1 RTthread配置
+### 2.1 menuconfig配置
 - RT-Thread env开发工具中使用 `menuconfig` 使能 `tencent-iothub` 软件包，选择开发平台，配置产品及设备信息，并根据产品需求选择合适的应用示例修改新增业务逻辑，也可新增例程编写新的业务逻辑。
 
 ```
@@ -49,6 +45,7 @@ Tencent IOT SDK for rt-thread Package 是基于[腾讯云设备端C-SDK]([腾讯
 ```
 
 - 选项说明
+
 `Select Tencent IOT platform`：选择物联网通信平台（Iot_hub）还是物联网开发平台（Iot_explorer）。
 
 `Config Product Id`：配置产品ID，平台创建生成。
@@ -57,7 +54,7 @@ Tencent IOT SDK for rt-thread Package 是基于[腾讯云设备端C-SDK]([腾讯
 
 `Config Device Secret`：配置设备密钥，平台创建生成，考虑到嵌入式设备大多没有文件系统，暂时没有支持证书设备配置。
 
-`Enable dynamic register`：是否使能[设备动态注册]()，若使能，则需要配置产品密钥，解决一型一密的场景。
+`Enable dynamic register`：是否使能[设备动态注册](https://cloud.tencent.com/document/product/634)，若使能，则需要配置产品密钥，解决一型一密的场景。
 
 `Enable err log upload`：是否使能错误日志上传云端。
 
@@ -365,5 +362,43 @@ INF|57|packages\tencent-iot-sdk-latest\samples\iot_explorer_platform\light_data_
 - 控制台调试
 ![control](https://main.qcloudimg.com/raw/137d8f6df2d6d5df21a2507412392360.jpg)
 
-### 其他示例及接口说明
- 关于 SDK 的更多使用方式及接口了解, 参见 qcloud_iot_api_export.h，其他示例不再一一列举，开发者也可以把官网SDK下的其他Sample参照port目录移植过来，譬如OTA、网关、动态注册等等。
+### 2.4 其他示例说明
+ 关于 SDK 的更多使用方式及接口了解, 参见 `qcloud_iot_api_export.h`，其他示例不再一一列举，开发者也可以把官网SDK下的其他Sample参照port目录移植过来，譬如OTA、网关、动态注册等等。
+
+### 2.5 变参数配置
+开发者可以根据具体场景需求，配置相应的参数，满足实际业务的运行。可变接入参数包括：
+1. MQTT 心跳消息发送周期, 单位: ms 
+2. MQTT 阻塞调用(包括连接, 订阅, 发布等)的超时时间, 单位:ms。 建议 5000 ms
+3. TLS 连接握手超时时间, 单位: ms
+4. MQTT 协议发送消息和接受消息的 buffer 大小默认是 512 字节，最大支持 256 KB
+5. CoAP 协议发送消息和接受消息的 buffer 大小默认是 512 字节，最大支持 64 KB
+6. 重连最大等待时间
+
+修改 qcloud_iot_export.h 文件如下宏定义可以改变对应接入参数的配置。
+
+```
+/* MQTT心跳消息发送周期, 单位:ms */
+#define QCLOUD_IOT_MQTT_KEEP_ALIVE_INTERNAL                         (240 * 1000)
+
+/* MQTT 阻塞调用(包括连接, 订阅, 发布等)的超时时间, 单位:ms 建议5000ms */
+#define QCLOUD_IOT_MQTT_COMMAND_TIMEOUT                             (5000)
+
+/* TLS连接握手超时时间, 单位:ms */
+#define QCLOUD_IOT_TLS_HANDSHAKE_TIMEOUT                            (5000)
+
+/* MQTT消息发送buffer大小, 支持最大256*1024 */
+#define QCLOUD_IOT_MQTT_TX_BUF_LEN                                  (512)
+
+/* MQTT消息接收buffer大小, 支持最大256*1024 */
+#define QCLOUD_IOT_MQTT_RX_BUF_LEN                                  (512)
+
+/* COAP 发送消息buffer大小，最大支持64*1024字节 */
+#define COAP_SENDMSG_MAX_BUFLEN                                     (512)
+
+/* COAP 接收消息buffer大小，最大支持64*1024字节 */
+#define COAP_RECVMSG_MAX_BUFLEN                                     (512)
+
+/* 重连最大等待时间 */
+#define MAX_RECONNECT_WAIT_INTERVAL                                 (60000)
+
+```
