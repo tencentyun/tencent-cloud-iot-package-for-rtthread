@@ -87,19 +87,32 @@ Tencent IOT SDK for rt-thread Package 是基于[腾讯云设备端C-SDK](https:/
 
 - 相关链接
 [物联网开发平台SDK说明文档](https://github.com/tencentyun/qcloud-iot-sdk-embedded-c/blob/master/docs/物联网开发平台.md)
- [物联网通信平台SDK说明文档](https://github.com/tencentyun/qcloud-iot-sdk-embedded-c/blob/master/docs/物联网通信.md)
+ [物联网通信平台SDK说明文档](https://github.com/tencentyun/qcloud-iot-sdk-embedded-c/blob/master/docs/物联网通信平台.md)
 
 - 使用 `pkgs --update` 命令下载软件包
 
-### 2.2 编译及运行
+#### 2.2 创建可订阅可发布的Topic
+
+创建的设备默认只有两个topic，一个只有发布权限，一个只有订阅权限。配合MQTT示例，需要在控制台对应产品下创建可订阅发布的data topic。
+进入控制台产品设置页面, 点击权限列表，再点击**添加Topic权限**。
+
+![](https://main.qcloudimg.com/raw/65a2d1b7251de37ce1ca2ba334733c57.png)
+
+在弹窗中输入 data, 并设置操作权限为**发布和订阅**，点击创建。
+
+![](https://main.qcloudimg.com/raw/f429b32b12e3cb0cf319b1efe11ccceb.png)
+
+随后将会创建出 productID/\${deviceName}/data 的 Topic，在产品页面的权限列表中可以查看该产品的所有权限。
+
+### 2.3 编译及运行
 1. 使用命令 scons --target=xxx 输出对应的工程，编译 
 
 2. 执行示例程序：
 
-### 2.3 运行demo程序
+### 2.4 运行demo程序
 系统启动后，在 MSH 中使用命令执行：
 
-#### 2.3.1  MQTT+TLS示例：
+#### 2.4.1  MQTT+TLS示例：
 - 示例说明：该示例展示了设备和[物联网通信平台](https://cloud.tencent.com/product/iothub)的MQTT通信示例，包括MQTT连接、主题订阅、消息推送、消息收取回调处理，使能TLS。
 
 - 配置选项
@@ -154,7 +167,7 @@ INF|31|packages\tencent-iot-sdk-latest\samples\iot_hub_platform\mqtt_sample.c|ev
 INF|31|packages\tencent-iot-sdk-latest\samples\iot_hub_platform\mqtt_sample.c|on_message_callback(132): Receive Message With topicName:03UKNYBUZG/general_sdev1/data, payload:{"action": "publish_test", "count": "1"}
 ```
 
-#### 2.3.2  MQTT 无TLS示例：
+#### 2.4.2  MQTT 无TLS示例：
 - 示例说明：该示例展示了设备和[物联网通信平台](https://cloud.tencent.com/product/iothub)的MQTT通信示例，包括MQTT连接、主题订阅、消息推送、消息收取回调处理，无TLS。对于资源特别受限的设备可能无法支持TLS，通过关闭TLS节省资源，但此中情况会面临较大的安全性问题，用户根据业务场景审慎使用。
 
 - 配置选项
@@ -208,7 +221,7 @@ INF|27|packages\tencent-iot-sdk-latest\samples\iot_hub_platform\mqtt_sample.c|ev
 INF|27|packages\tencent-iot-sdk-latest\samples\iot_hub_platform\mqtt_sample.c|on_message_callback(132): Receive Message With topicName:03UKNYBUZG/general_sdev1/data, payload:{"action": "publish_test", "count": "1"}
 ```
 
-#### 2.3.3  Shadow + TLS示例：
+#### 2.4.3  Shadow + TLS示例：
 - 示例说明：该示例展示了设备和[物联网通信平台](https://cloud.tencent.com/product/iothub)的基于[影子协议](https://cloud.tencent.com/document/product/634/11918)的MQTT通信示例，关于影子协议参见链接说明，使能TLS。
 
 - 配置选项
@@ -268,7 +281,7 @@ DBG|36|packages\tencent-iot-sdk-latest\qcloud-iot-sdk-embedded-c\src\shadow\src\
 INF|36|packages\tencent-iot-sdk-latest\samples\iot_hub_platform\shadow_sample.c|OnShadowUpdateCallback(58): recv shadow update response, response ack: 0
 ```
 
-#### 2.3.4 数据模板智能灯 + TLS示例：
+#### 2.4.4 数据模板智能灯 + TLS示例：
 - 示例说明：该示例展示了设备和[物联网开发平台](https://cloud.tencent.com/product/iotexplorer)的基于[数据模板协议](https://cloud.tencent.com/document/product/1081/34916)通信示例，关于数据模板协议参见链接说明，使能TLS，示例在物联网开发平台下发控制灯为红色的命令，设备端收取了消息，打印颜色，并上报对应消息。
 
 - 配置选项
@@ -362,10 +375,10 @@ INF|57|packages\tencent-iot-sdk-latest\samples\iot_explorer_platform\light_data_
 - 控制台调试
 ![control](https://main.qcloudimg.com/raw/137d8f6df2d6d5df21a2507412392360.jpg)
 
-### 2.4 其他示例说明
+### 2.5 其他示例说明
  关于 SDK 的更多使用方式及接口了解, 参见 `qcloud_iot_api_export.h`，其他示例不再一一列举，开发者也可以把官网SDK下的其他Sample参照port目录移植过来，譬如OTA、网关、动态注册等等。
 
-### 2.5 变参数配置
+### 2.6 可变参数配置
 开发者可以根据具体场景需求，配置相应的参数，满足实际业务的运行。可变接入参数包括：
 1. MQTT 心跳消息发送周期, 单位: ms 
 2. MQTT 阻塞调用(包括连接, 订阅, 发布等)的超时时间, 单位:ms。 建议 5000 ms
