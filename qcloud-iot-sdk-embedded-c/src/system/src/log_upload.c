@@ -36,13 +36,14 @@
 #define TIMESTAMP_SIZE 10
 #define SIGNATURE_SIZE 40
 #define CTRL_BYTES_SIZE 4
+//LOG_BUF_FIXED_HEADER_SIZE = 112
 #define LOG_BUF_FIXED_HEADER_SIZE   (SIGNATURE_SIZE + CTRL_BYTES_SIZE + MAX_SIZE_OF_PRODUCT_ID + MAX_SIZE_OF_DEVICE_NAME + TIMESTAMP_SIZE)
 
 /* do immediate log update if buffer is lower than this threshold (about two max log item) */
-#define LOG_LOW_BUFFER_THRESHOLD    (2*MAX_LOG_MSG_LEN)
+#define LOG_LOW_BUFFER_THRESHOLD    (LOG_UPLOAD_BUFFER_SIZE/4)
 
-/* static allocate log upload buffer */
-static char sg_log_buffer[LOG_UPLOAD_BUFFER_SIZE] = {0};
+/* log upload buffer */
+static char *sg_log_buffer = NULL;
 static uint32_t sg_write_index = LOG_BUF_FIXED_HEADER_SIZE;
 
 #define SIGN_KEY_SIZE 24
@@ -194,7 +195,7 @@ static bool _get_json_ret_code(char *json, int32_t* res) {
 }
 #endif
 
-static int _send_log_to_server(char *post_buf, size_t post_size)
+static int _post_one_http_to_server(char *post_buf, size_t post_size)
 {  
     int rc = 0;
 
@@ -261,6 +262,80 @@ static void _update_time_and_signature(char *log_buf, size_t log_size)
 
 }
 
+static int _post_log_to_server(char *post_buf, size_t post_size, size_t *actual_post_payload)
+{
+#define LOG_DELIMITER "\n\f"
+    int ret = QCLOUD_ERR_SUCCESS;
+    /* one shot upload */
+    if (post_size < MAX_HTTP_LOG_POST_SIZE) {
+        _update_time_and_signature(post_buf, post_size);
+        ret = _post_one_http_to_server(post_buf, post_size);
+        if (QCLOUD_ERR_SUCCESS == ret) {
+            *actual_post_payload = post_size - LOG_BUF_FIXED_HEADER_SIZE;
+        } else {
+            UPLOAD_ERR("one time log send failed");
+            *actual_post_payload = 0;
+        }
+        return ret;
+    }    
+        
+    /* Log size is larger than one HTTP post size */ 
+    /* Fragment the log and upload multi-times */    
+    UPLOAD_DBG("to post large log size %d", post_size); 
+    *actual_post_payload = 0;
+    size_t delimiter_len = strlen(LOG_DELIMITER);
+    size_t orig_post_size = post_size;
+    size_t post_payload, upload_size, possible_size;
+    do {
+        char *next_log_buf = NULL;                        
+        possible_size = 0;
+        while (possible_size < MAX_HTTP_LOG_POST_SIZE){
+            /*remember last valid position */
+            upload_size = possible_size;
+            /* locate the delimiter */
+            next_log_buf = strstr(post_buf + upload_size, LOG_DELIMITER);
+            if (next_log_buf == NULL) {                
+                UPLOAD_ERR("Invalid log delimiter. Total sent: %d. Left: %d", 
+                    *actual_post_payload+LOG_BUF_FIXED_HEADER_SIZE, post_size);                
+                return QCLOUD_ERR_INVAL;
+
+            }
+            possible_size = (size_t)(next_log_buf - post_buf + delimiter_len);
+            /* end of log */
+            if (next_log_buf[delimiter_len] == 0 && possible_size < MAX_HTTP_LOG_POST_SIZE) {                
+                upload_size = possible_size;
+                break;
+            }
+        }
+
+        if (upload_size == 0) {
+            UPLOAD_ERR("Upload size should not be 0! Total sent: %d. Left: %d", 
+                    *actual_post_payload+LOG_BUF_FIXED_HEADER_SIZE, post_size);
+            return QCLOUD_ERR_FAILURE;
+        }
+        
+        _update_time_and_signature(post_buf, upload_size);
+        ret = _post_one_http_to_server(post_buf, upload_size);
+        if (QCLOUD_ERR_SUCCESS != ret) {                
+            UPLOAD_ERR("Send log failed. Total sent: %d. Left: %d", 
+                    *actual_post_payload+LOG_BUF_FIXED_HEADER_SIZE, post_size);
+            return QCLOUD_ERR_FAILURE;
+        }
+        
+        /* move the left log forward and do next upload */
+        memmove(post_buf+LOG_BUF_FIXED_HEADER_SIZE, post_buf+upload_size, post_size-upload_size);
+        post_payload = upload_size - LOG_BUF_FIXED_HEADER_SIZE;
+        post_size -= post_payload;
+        *actual_post_payload += post_payload;
+        memset(post_buf+post_size, 0, orig_post_size - post_size);        
+        UPLOAD_DBG("post log %d OK. Total sent: %d. Left: %d", 
+            upload_size, *actual_post_payload+LOG_BUF_FIXED_HEADER_SIZE, post_size);
+    } while(post_size>LOG_BUF_FIXED_HEADER_SIZE);
+
+    return QCLOUD_ERR_SUCCESS;    
+}
+
+
 static void _reset_log_buffer(void)
 {    
     sg_write_index = LOG_BUF_FIXED_HEADER_SIZE;
@@ -293,8 +368,7 @@ static int _save_log(char *log_buf, size_t log_size)
 }
 
 static int _handle_saved_log(void)
-{
-#define LOG_DELIMITER "\n\f"    
+{    
     int rc = QCLOUD_ERR_SUCCESS;
     size_t whole_log_size = sg_uploader->get_size_func();
     if (whole_log_size > 0) {
@@ -314,60 +388,14 @@ static int _handle_saved_log(void)
                 memcpy(log_buf, sg_log_buffer, LOG_BUF_FIXED_HEADER_SIZE);
                 log_buf[buf_size - 1] = 0;
 
-                if (upload_size > MAX_HTTP_LOG_POST_SIZE) {
-                    /* we need to fragment and post several times */
-                    
-                    bool end_of_buf = false;
-                    size_t delimiter_len = strlen(LOG_DELIMITER);
-                    char *fragment_buf = log_buf;
-                    do {
-                        char *next_log_buf = NULL;                        
-                        upload_size = 0;
-                        while ((upload_size + MAX_LOG_MSG_LEN) < MAX_HTTP_LOG_POST_SIZE){
-                            /* locate the delimiter */
-                            next_log_buf = strstr(fragment_buf + upload_size, LOG_DELIMITER);
-                            if (next_log_buf == NULL) {
-                                Log_e("illegal saved log content");
-                                HAL_Free(log_buf);
-                                sg_uploader->del_func();
-                                return QCLOUD_ERR_FAILURE;
-
-                            }
-                            upload_size = (size_t)(next_log_buf - fragment_buf + delimiter_len);
-
-                            if (next_log_buf[delimiter_len] == 0) {
-                                end_of_buf = true;
-                                break;
-                            }
-                        }
-
-                        _update_time_and_signature(fragment_buf, upload_size);                
-
-                        rc = _send_log_to_server(fragment_buf, upload_size);
-                        /* delete the saved log if only one upload success */
-                        if (rc == QCLOUD_ERR_SUCCESS)
-                            sg_uploader->del_func();
-
-                        if (!end_of_buf) {
-                            /*move the buffer header */
-                            next_log_buf = next_log_buf + delimiter_len - LOG_BUF_FIXED_HEADER_SIZE;
-                            memcpy(next_log_buf, log_buf, LOG_BUF_FIXED_HEADER_SIZE);
-                            fragment_buf = next_log_buf;
-                        }
-
-                    } while(!end_of_buf);
-                } else {
-                    /* one single post is enough */
-                    _update_time_and_signature(log_buf, upload_size);                
-
-                    rc = _send_log_to_server(log_buf, upload_size);
-                    if (rc == QCLOUD_ERR_SUCCESS)
-                        sg_uploader->del_func();
-                }
-                HAL_Free(log_buf);
-                Log_d("handle saved log done! Size: %u", whole_log_size);
-                
-            }else {
+                size_t actual_post_payload;
+                rc = _post_log_to_server(log_buf, upload_size, &actual_post_payload);
+                if (rc == QCLOUD_ERR_SUCCESS || rc == QCLOUD_ERR_INVAL) {
+                    Log_d("handle saved log done! Size: %d. upload paylod: %d", whole_log_size, actual_post_payload);
+                    sg_uploader->del_func();
+                }    
+                HAL_Free(log_buf);                
+            } else {
                 Log_e("fail to read whole saved log. Size: %u - read: %u", whole_log_size, read_len);
                 HAL_Free(log_buf);
                 return QCLOUD_ERR_FAILURE;
@@ -448,29 +476,37 @@ void clear_upload_buffer(void)
 }
 
 
-void init_log_uploader(LogUploadInitParams *init_params)
+int init_log_uploader(LogUploadInitParams *init_params)
 {
-    int i;
+    if (sg_log_uploader_init_done)
+        return QCLOUD_ERR_SUCCESS;
 
     if (init_params == NULL || init_params->product_id == NULL || 
             init_params->device_name == NULL || init_params->sign_key == NULL) {
         UPLOAD_ERR("invalid init parameters");
-        return ;
+        return QCLOUD_ERR_INVAL;
     }
 
     int key_len = strlen(init_params->sign_key);
     if (key_len == 0) {
         UPLOAD_ERR("invalid key length");        
-        return ;
+        return QCLOUD_ERR_INVAL;
     }
-    
+
+    sg_log_buffer = HAL_Malloc(LOG_UPLOAD_BUFFER_SIZE);
+    if (sg_log_buffer == NULL) {
+        UPLOAD_ERR("malloc log buffer failed");        
+        return QCLOUD_ERR_FAILURE;
+    }
+
+    int i;
     for(i = 0; i<LOG_BUF_FIXED_HEADER_SIZE; i++)
         sg_log_buffer[i] = '#';
     
 #ifdef AUTH_MODE_CERT     
     if (_gen_key_from_file(init_params->sign_key) != 0) {
         UPLOAD_ERR("gen_key_from_file failed");        
-        return ;
+        return QCLOUD_ERR_FAILURE;
     }
     sg_log_buffer[SIGNATURE_SIZE] = 'C';
 #else    
@@ -483,7 +519,7 @@ void init_log_uploader(LogUploadInitParams *init_params)
 
     if (NULL == (sg_uploader = HAL_Malloc(sizeof(LogUploaderStruct)))) {        
         UPLOAD_ERR("allocate for LogUploaderStruct failed");
-        return ;
+        return QCLOUD_ERR_FAILURE;
     }
     memset(sg_uploader, 0, sizeof(LogUploaderStruct));
 
@@ -509,14 +545,14 @@ void init_log_uploader(LogUploadInitParams *init_params)
 
     if ((sg_uploader->lock_buf = HAL_MutexCreate()) == NULL) {
         UPLOAD_ERR("mutex create failed");
-        return ;
+        return QCLOUD_ERR_FAILURE;
     }
     
     if (NULL == (sg_http_c = HAL_Malloc(sizeof(LogHTTPStruct)))) {
         HAL_MutexDestroy(sg_uploader->lock_buf);
         HAL_Free(sg_uploader);
         UPLOAD_ERR("allocate for LogHTTPStruct failed");
-        return ;
+        return QCLOUD_ERR_FAILURE;
     }
     memset(sg_http_c, 0, sizeof(LogHTTPStruct));
 
@@ -528,7 +564,31 @@ void init_log_uploader(LogUploadInitParams *init_params)
 
     _reset_log_buffer();
     sg_log_uploader_init_done = true;
+
+    return QCLOUD_ERR_SUCCESS;
     
+}
+
+void fini_log_uploader(void)
+{
+    if (!sg_log_uploader_init_done)
+        return ;
+        
+    HAL_MutexLock(sg_uploader->lock_buf);
+    sg_log_uploader_init_done = false; 
+    if (sg_log_buffer) {
+        _reset_log_buffer();
+        HAL_Free(sg_log_buffer);
+        sg_log_buffer = NULL;
+    }
+    HAL_MutexUnlock(sg_uploader->lock_buf);
+
+    HAL_MutexDestroy(sg_uploader->lock_buf);
+    sg_uploader->lock_buf = NULL;
+    HAL_Free(sg_uploader);
+    sg_uploader = NULL;
+    HAL_Free(sg_http_c);
+    sg_http_c = NULL;
 }
 
 static bool _check_force_upload(bool force_upload)
@@ -589,15 +649,22 @@ int do_log_upload(bool force_upload)
     HAL_MutexLock(sg_uploader->lock_buf);
     upload_log_size = sg_write_index;
     HAL_MutexUnlock(sg_uploader->lock_buf);
-
-    _update_time_and_signature(sg_log_buffer, upload_log_size);
-
-    /* save log via user callbacks when log upload fail */
-    rc = _send_log_to_server(sg_log_buffer, upload_log_size);    
-    if (rc != QCLOUD_ERR_SUCCESS) {        
+    
+    size_t actual_post_payload;
+    rc = _post_log_to_server(sg_log_buffer, upload_log_size, &actual_post_payload);    
+    if (rc != QCLOUD_ERR_SUCCESS) {
+        /* save log via user callbacks when log upload fail */
         if (sg_uploader->log_save_enabled) {
             /* new error logs should have been added, update log size */
             HAL_MutexLock(sg_uploader->lock_buf);
+            /* parts of log were uploaded succesfully. Need to move the new logs forward */
+            if (actual_post_payload) {
+                UPLOAD_DBG("move the new log %d forward", actual_post_payload);
+                memmove(sg_log_buffer+upload_log_size-actual_post_payload, 
+                    sg_log_buffer+upload_log_size, sg_write_index-upload_log_size);
+                sg_write_index = sg_write_index - actual_post_payload;
+                memset(sg_log_buffer+sg_write_index, 0, LOG_UPLOAD_BUFFER_SIZE - sg_write_index);
+            }
             upload_log_size = sg_write_index;
             HAL_MutexUnlock(sg_uploader->lock_buf);
             _save_log(sg_log_buffer+LOG_BUF_FIXED_HEADER_SIZE, upload_log_size-LOG_BUF_FIXED_HEADER_SIZE);

@@ -70,7 +70,7 @@ static int _register_subscribe_topics(void *client);
  */
 bool _is_value_equal(float left, float right)
 {
-    if((left<right+0.01) && (left>right-0.01))
+    if((left < right+0.01) && (left > right-0.01))
         return true;
     else
         return false;
@@ -375,7 +375,7 @@ static int _register_subscribe_topics(void *client)
     return IOT_Shadow_Subscribe(client, topic_name, &sub_params);
 }
 
-int air_shadow_thread(void) {
+static void air_shadow_thread(void) {
     int rc;
 
     //init log level
@@ -386,7 +386,7 @@ int air_shadow_thread(void) {
     rc = _setup_connect_init_params(&init_params);
     if (rc != QCLOUD_ERR_SUCCESS) {
 		Log_e("init params err,rc=%d", rc);
-		return rc;
+		return;
 	}
 
     void *client = IOT_Shadow_Construct(&init_params);
@@ -394,7 +394,7 @@ int air_shadow_thread(void) {
         Log_i("Cloud Device Construct Success");
     } else {
         Log_e("Cloud Device Construct Failed");
-        return QCLOUD_ERR_FAILURE;
+        return;
     }
 
     //init shadow data
@@ -406,7 +406,7 @@ int air_shadow_thread(void) {
         Log_i("Cloud Device Register Delta Success");
     } else {
         Log_e("Cloud Device Register Delta Failed: %d", rc);
-        return rc;
+        return;
     }
 
     //pull shadow document and update local shadow version
@@ -422,12 +422,17 @@ int air_shadow_thread(void) {
     rc = _register_subscribe_topics(client);
     if (rc < 0) {
         Log_e("Client Subscribe Topic Failed: %d", rc);
-        return rc;
+        return;
     }
 
 	running_state = 1;
     while (IOT_Shadow_IsConnected(client) || rc == QCLOUD_ERR_MQTT_ATTEMPTING_RECONNECT 
-		    || rc == QCLOUD_ERR_MQTT_RECONNECTED && running_state) {
+		    || rc == QCLOUD_ERR_MQTT_RECONNECTED) {
+		    
+		if(0 == running_state)
+		{
+			break;
+		}    
 
         rc = IOT_Shadow_Yield(client, 200);
 
@@ -464,16 +469,13 @@ int air_shadow_thread(void) {
     rc = IOT_Shadow_Destroy(client);
 	running_state = 0;
 
-    return rc;
+    return;
 }
 
-int tc_air_shadow_example(int argc, char **argv)
+static int tc_air_shadow_example(int argc, char **argv)
 {
-    rt_err_t result;
     rt_thread_t tid;
     int stack_size = AIR_SHADOW_THREAD_STACK_SIZE;
-    int priority = 20;
-    char *stack;
 
 	IOT_Log_Set_Level(DEBUG);
 	if (2 == argc)
@@ -508,23 +510,10 @@ int tc_air_shadow_example(int argc, char **argv)
 		return 0;
 	}
 	  
+	tid = rt_thread_create("air_shadow", (void (*)(void *))air_shadow_thread, 
+							NULL, stack_size, RT_THREAD_PRIORITY_MAX / 2 - 1, 10);  
 
-    tid = rt_malloc(RT_ALIGN(sizeof(struct rt_thread), 8) + stack_size);
-    if (!tid)
-    {
-        Log_d("no memory for thread: tc_shadow_example");
-        return -1;
-    }
-
-    stack = (char *)tid + RT_ALIGN(sizeof(struct rt_thread), 8);
-    result = rt_thread_init(tid,
-                            "air_shadow",
-                            (void *)air_shadow_thread, NULL, // fun, parameter
-                            stack, stack_size,        // stack, size
-                            priority, 2               //priority, tick
-                           );
-
-    if (result == RT_EOK)
+    if (tid != RT_NULL)
     {
         rt_thread_startup(tid);
     }

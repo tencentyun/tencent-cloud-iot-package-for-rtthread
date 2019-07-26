@@ -148,7 +148,7 @@ static int _setup_connect_init_params(CoAPInitParams* initParams)
 }
 
 
-int coap_thread(void)
+static void coap_thread(void)
 {
 	int rc = QCLOUD_ERR_SUCCESS;
 	
@@ -158,13 +158,13 @@ int coap_thread(void)
     rc = _setup_connect_init_params(&init_params);
 	if (rc != QCLOUD_ERR_SUCCESS) {
 		Log_e("init params err,rc=%d", rc);
-		return rc;
+		return;
 	}
 
 	void *coap_client = IOT_COAP_Construct(&init_params);
 	if (coap_client == NULL) {
 		Log_e("COAP Client construct failed.");
-		return QCLOUD_ERR_FAILURE;
+		return;
 	}	
 
 	running_state = 1;
@@ -194,22 +194,20 @@ int coap_thread(void)
 			break;
 		}
 
-		HAL_SleepMs(1000);
+		HAL_SleepMs(3000);
     } while (running_state);
 
     IOT_COAP_Destroy(&coap_client);
+	running_state = 0;
 
-
-    return QCLOUD_ERR_SUCCESS;
+    return;
 }
 
-int tc_coap_example(int argc, char **argv)
+static int tc_coap_example(int argc, char **argv)
 {
-    rt_err_t result;
     rt_thread_t tid;
     int stack_size = COAP_THREAD_STACK_SIZE;
-    int priority = 20;
-    char *stack;
+
 
 	IOT_Log_Set_Level(DEBUG);
 	if (2 == argc)
@@ -244,23 +242,10 @@ int tc_coap_example(int argc, char **argv)
 		return 0;
 	}
 
-	
-    tid = rt_malloc(RT_ALIGN(sizeof(struct rt_thread), 8) + stack_size);
-    if (!tid)
-    {
-        Log_d("no memory for thread: tc_coap_example");
-        return -1;
-    }
+	tid = rt_thread_create("coap_sample", (void (*)(void *))coap_thread, 
+							NULL, stack_size, RT_THREAD_PRIORITY_MAX / 2 - 1, 10);  
 
-    stack = (char *)tid + RT_ALIGN(sizeof(struct rt_thread), 8);
-    result = rt_thread_init(tid,
-                            "coap_sample",
-                            (void *)coap_thread, NULL, // fun, parameter
-                            stack, stack_size,        // stack, size
-                            priority, 2               //priority, tick
-                           );
-
-    if (result == RT_EOK)
+    if (tid != RT_NULL)
     {
         rt_thread_startup(tid);
     }

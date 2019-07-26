@@ -85,8 +85,6 @@ int qcloud_iot_shadow_init(Qcloud_IoT_Shadow *pShadow) {
 
     POINTER_SANITY_CHECK(pShadow, QCLOUD_ERR_INVAL);
 
-    pShadow->inner_data.version = 0;
-
     pShadow->mutex = HAL_MutexCreate();
     if (pShadow->mutex == NULL)
         IOT_FUNC_EXIT_RC(QCLOUD_ERR_FAILURE);
@@ -166,7 +164,7 @@ int do_shadow_request(Qcloud_IoT_Shadow *pShadow, RequestParams *pParams, char *
         rc = _publish_operation_to_cloud(pShadow, pParams->method, pJsonDoc);
     }
 
-    if (rc == QCLOUD_ERR_SUCCESS) {
+    if (rc >= 0) {
         rc = _add_request_to_list(pShadow, client_token, pParams);
     }
 
@@ -262,7 +260,6 @@ static void _on_operation_result_handler(void *pClient, MQTTMessage *message, vo
 	char *client_token = NULL;
     char *type_str = NULL;
 	int cloud_rcv_len;
-	uint32_t version_num = 0;
 	
     POINTER_SANITY_CHECK_RTN(pClient);
     POINTER_SANITY_CHECK_RTN(message);
@@ -296,15 +293,6 @@ static void _on_operation_result_handler(void *pClient, MQTTMessage *message, vo
 		Log_e("Fail to parse client token! Json=%s", cloud_rcv_buf);
 		goto End;
     }
-
-    //获取shadow push消息version，如果比本地的version则修改本地version，比本地可能是由于服务器回滚或出错
-
-	if (parse_version_num(cloud_rcv_buf, &version_num)) {
-		if (version_num > shadow_client->inner_data.version) {
-			shadow_client->inner_data.version = version_num;
-		}
-	}
-
 
     if (!strcmp(type_str, OPERATION_DELTA)) {
         HAL_MutexLock(shadow_client->mutex);
@@ -454,7 +442,7 @@ static int _unsubscribe_operation_result_to_cloud(void* pClient)
     }
 
     IOT_MQTT_Unsubscribe(pClient, operation_result_topic);
-    if (rc != QCLOUD_ERR_SUCCESS) {
+    if (rc < 0) {
         Log_e("unsubscribe topic: %s failed: %d.", operation_result_topic, rc);
     }
 

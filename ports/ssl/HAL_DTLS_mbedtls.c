@@ -216,9 +216,13 @@ uintptr_t HAL_DTLS_Connect(DTLSConnectParams *pConnectParams, const char *host, 
 		goto error;
 	}
 
+	 Log_d(" Connecting to /%s/%d...", host, port);
+	
     if ((ret = _mbedtls_udp_connect(&(pDataParams->socket_fd), host, port)) != QCLOUD_ERR_SUCCESS) {
 		goto error;
 	}
+
+	Log_d(" Setting up the SSL/DTLS structure...");
 
     if ((ret = mbedtls_ssl_config_defaults(&pDataParams->ssl_conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_DATAGRAM,
                                          MBEDTLS_SSL_PRESET_DEFAULT)) != 0) {
@@ -276,6 +280,7 @@ uintptr_t HAL_DTLS_Connect(DTLSConnectParams *pConnectParams, const char *host, 
 	mbedtls_ssl_set_bio(&(pDataParams->ssl), (void *)&pDataParams->socket_fd, mbedtls_net_send, mbedtls_net_recv,
 						mbedtls_net_recv_timeout);
 
+	Log_d("Performing the SSL/DTLS handshake...");
 	while ((ret = mbedtls_ssl_handshake(&(pDataParams->ssl))) != 0) {
 		if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
 			Log_e("mbedtls_ssl_handshake failed returned -0x%x", -ret);

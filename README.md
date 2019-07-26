@@ -113,7 +113,7 @@ Tencent IOT SDK for rt-thread Package 是基于[腾讯云设备端C-SDK](https:/
 系统启动后，在 MSH 中使用命令执行：
 
 #### 2.4.1  MQTT+TLS示例：
-- 示例说明：该示例展示了设备和[物联网通信平台](https://cloud.tencent.com/product/iothub)的MQTT通信示例，包括MQTT连接、主题订阅、消息推送、消息收取回调处理，使能TLS。
+- 示例说明：该示例展示了设备和[物联网通信平台](https://cloud.tencent.com/product/iothub)的MQTT通信示例，包括MQTT连接、主题订阅、消息推送、消息收取回调处理，使能TLS。 
 
 - 配置选项
 ```
@@ -372,13 +372,17 @@ INF|54|packages\tencent-iot-sdk-latest\samples\iot_explorer_platform\light_data_
 INF|57|packages\tencent-iot-sdk-latest\samples\iot_explorer_platform\light_data_template_sample.c|OnShadowUpdateCallback(353): recv shadow update response, response ack: 0
 ```
 
-- 控制台调试
+### 2.5 服务端下行消息控制
+- [物联网开发平台](https://cloud.tencent.com/product/iotexplorer)可以通过控制台直接调试，如下截图
 ![control](https://main.qcloudimg.com/raw/137d8f6df2d6d5df21a2507412392360.jpg)
 
-### 2.5 其他示例说明
+- [物联网通信平台](https://cloud.tencent.com/product/iothub)通过控制台可以下发基于影子的消息，但操作相对复杂。建议通过在线API调试，参考文档[服务下发消息到设备](https://cloud.tencent.com/document/product/634/34806)
+
+
+### 2.6 其他示例说明
  关于 SDK 的更多使用方式及接口了解, 参见 `qcloud_iot_api_export.h`，其他示例不再一一列举，开发者也可以把官网SDK下的其他Sample参照port目录移植过来，譬如OTA、网关、动态注册等等。
 
-### 2.6 可变参数配置
+### 2.7 可变参数配置
 开发者可以根据具体场景需求，配置相应的参数，满足实际业务的运行。可变接入参数包括：
 1. MQTT 心跳消息发送周期, 单位: ms 
 2. MQTT 阻塞调用(包括连接, 订阅, 发布等)的超时时间, 单位:ms。 建议 5000 ms

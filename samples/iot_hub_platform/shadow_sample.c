@@ -97,7 +97,7 @@ static int _setup_connect_init_params(ShadowInitParams* initParams)
 }
 
 
-int mqtt_shadow_thread(void *context)
+static void mqtt_shadow_thread(void)
 {
 	int rc = QCLOUD_ERR_FAILURE;
 
@@ -108,13 +108,13 @@ int mqtt_shadow_thread(void *context)
     rc = _setup_connect_init_params(&init_params);
 	if (rc != QCLOUD_ERR_SUCCESS) {
 		Log_e("init params err,rc=%d", rc);
-		return rc;
+		return;
 	}
 
 	shadow_client = IOT_Shadow_Construct(&init_params);
 	if (shadow_client == NULL) {
 		Log_e("shadow client constructed failed.");
-		return QCLOUD_ERR_FAILURE;
+		return;
 	}
 
 	//注册delta属性
@@ -125,19 +125,23 @@ int mqtt_shadow_thread(void *context)
 	if (rc != QCLOUD_ERR_SUCCESS) {
 		rc = IOT_Shadow_Destroy(shadow_client);
 		Log_e("register device shadow property failed, err: %d", rc);
-		return rc;
+		return;
 	}
 
 	//进行Shdaow Update操作的之前，最后进行一次同步操作，否则可能本机上shadow version和云上不一致导致Shadow Update操作失败
 	rc = IOT_Shadow_Get_Sync(shadow_client, QCLOUD_IOT_MQTT_COMMAND_TIMEOUT);
 	if (rc != QCLOUD_ERR_SUCCESS) {
 		Log_e("get device shadow failed, err: %d", rc);
-		return rc;
+		return;
 	}
 
 	running_state = 1;
 	while (IOT_Shadow_IsConnected(shadow_client) || QCLOUD_ERR_MQTT_ATTEMPTING_RECONNECT == rc ||
 			QCLOUD_ERR_MQTT_RECONNECTED == rc || QCLOUD_ERR_SUCCESS == rc ) {
+			
+		if(0 == running_state){
+			break;
+		}	
 
 		rc = IOT_Shadow_Yield(shadow_client, 2000);
 
@@ -147,7 +151,7 @@ int mqtt_shadow_thread(void *context)
 		}
 		else if (rc != QCLOUD_ERR_SUCCESS && rc != QCLOUD_ERR_MQTT_RECONNECTED) {
 			Log_e("exit with error: %d", rc);
-			return rc;
+			return;
 		}
 
 		if (sg_delta_arrived) {
@@ -163,27 +167,19 @@ int mqtt_shadow_thread(void *context)
 
 		// sleep for some time in seconds
 		HAL_SleepMs(1000);
-		if(0 == running_state){
-			Log_d("Teminate!!!");
-			break;
-		}
 	}
-
-	Log_e("loop exit with error: %d", rc);
 	rc = IOT_Shadow_Destroy(shadow_client);
 	running_state = 0;
+	Log_e("Something goes wrong or stoped"); 
 
-	return rc;
+	return;
 }
 
 
 int tc_shadow_example(int argc, char **argv)
 {
-    rt_err_t result;
-    rt_thread_t tid;
+	rt_thread_t tid;
     int stack_size = MQTT_SHADOW_THREAD_STACK_SIZE;
-    int priority = 20;
-    char *stack;
 
 	IOT_Log_Set_Level(DEBUG);
 	if (2 == argc)
@@ -218,23 +214,10 @@ int tc_shadow_example(int argc, char **argv)
 		return 0;
 	}
 	  
+	tid = rt_thread_create("mqtt_shadow", (void (*)(void *))mqtt_shadow_thread, 
+							NULL, stack_size, RT_THREAD_PRIORITY_MAX / 2 - 1, 10);  
 
-    tid = rt_malloc(RT_ALIGN(sizeof(struct rt_thread), 8) + stack_size);
-    if (!tid)
-    {
-        Log_d("no memory for thread: tc_shadow_example");
-        return -1;
-    }
-
-    stack = (char *)tid + RT_ALIGN(sizeof(struct rt_thread), 8);
-    result = rt_thread_init(tid,
-                            "mqtt_shadow",
-                            (void *)mqtt_shadow_thread, NULL, // fun, parameter
-                            stack, stack_size,        // stack, size
-                            priority, 2               //priority, tick
-                           );
-
-    if (result == RT_EOK)
+    if (tid != RT_NULL)
     {
         rt_thread_startup(tid);
     }

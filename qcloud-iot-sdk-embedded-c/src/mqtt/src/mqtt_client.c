@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <ctype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -137,6 +138,20 @@ int IOT_MQTT_Destroy(void **pClient) {
 
 	int rc = qcloud_iot_mqtt_disconnect(mqtt_client);
 
+	int i = 0;
+    for (i = 0; i < MAX_MESSAGE_HANDLERS; ++i) {
+        /* notify this event to topic subscriber */
+        if (NULL != mqtt_client->sub_handles[i].sub_event_handler)
+            mqtt_client->sub_handles[i].sub_event_handler(mqtt_client, 
+                MQTT_EVENT_CLIENT_DESTROY, mqtt_client->sub_handles[i].handler_user_data);
+
+        if (NULL != mqtt_client->sub_handles[i].topic_filter) {
+            HAL_Free((void *)mqtt_client->sub_handles[i].topic_filter);
+            mqtt_client->sub_handles[i].topic_filter = NULL;
+        }
+
+    }
+
 #ifdef MQTT_RMDUP_MSG_ENABLED
     reset_repeat_packet_id_buffer();
 #endif
@@ -207,6 +222,16 @@ bool IOT_MQTT_IsConnected(void *pClient) {
     IOT_FUNC_EXIT_RC(get_client_conn_state(mqtt_client) == 1)
 }
 
+
+static inline  void _strlowr(char *str)
+{	
+	while(*str != '\0')	
+    {
+		*str = tolower(*str);
+		str++;
+	}        
+}
+
 int qcloud_iot_mqtt_init(Qcloud_IoT_Client *pClient, MQTTInitParams *pParams) {
     IOT_FUNC_ENTRY;
 
@@ -216,6 +241,8 @@ int qcloud_iot_mqtt_init(Qcloud_IoT_Client *pClient, MQTTInitParams *pParams) {
 	memset(pClient, 0x0, sizeof(Qcloud_IoT_Client));
 
     int size = HAL_Snprintf(s_qcloud_iot_host, HOST_STR_LENGTH, "%s.%s", pParams->product_id, QCLOUD_IOT_MQTT_DIRECT_DOMAIN);
+	_strlowr(s_qcloud_iot_host); //lowercase is more compatible to lwip
+
     if (size < 0 || size > HOST_STR_LENGTH - 1) {
 		IOT_FUNC_EXIT_RC(QCLOUD_ERR_FAILURE);
 	}
@@ -224,8 +251,9 @@ int qcloud_iot_mqtt_init(Qcloud_IoT_Client *pClient, MQTTInitParams *pParams) {
     for (i = 0; i < MAX_MESSAGE_HANDLERS; ++i) {
         pClient->sub_handles[i].topic_filter = NULL;
         pClient->sub_handles[i].message_handler = NULL;
+        pClient->sub_handles[i].sub_event_handler = NULL;
         pClient->sub_handles[i].qos = QOS0;
-        pClient->sub_handles[i].message_handler_data = NULL;
+        pClient->sub_handles[i].handler_user_data = NULL;
     }
 
     if (pParams->command_timeout < MIN_COMMAND_TIMEOUT)

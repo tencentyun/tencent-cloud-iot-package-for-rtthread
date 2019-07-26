@@ -317,14 +317,9 @@ void HAL_TLS_Disconnect(uintptr_t handle) {
         return;
     }
     TLSDataParams *pParams = (TLSDataParams *)handle;
-    int ret = 0;
-    do {
-        ret = mbedtls_ssl_close_notify(&(pParams->ssl));
-    } while (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE);
 
-
-	_free_mebedtls(pParams);
-	
+    mbedtls_ssl_close_notify(&(pParams->ssl));
+	_free_mebedtls(pParams);	
 }
 
 int HAL_TLS_Write(uintptr_t handle, unsigned char *msg, size_t totalLen, uint32_t timeout_ms,

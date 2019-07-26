@@ -84,8 +84,8 @@ void* IOT_COAP_Construct(CoAPInitParams *pParams)
 	}
 
     coap_client_auth(coap_client);
-    while (coap_client->is_authed == -1) {
-		IOT_COAP_Yield(coap_client, 200);
+    while (coap_client->is_authed == (char)-1) {
+		IOT_COAP_Yield(coap_client, 500);
 	}
 
 	if (coap_client->is_authed == COAP_TRUE) {
@@ -118,7 +118,7 @@ void IOT_COAP_Destroy(void **pClient) {
 		coap_client->auth_token = NULL;
 	}
 	coap_client->auth_token_len = 0;
-	coap_client->is_authed = -1;
+	coap_client->is_authed = (char)-1;
 
     HAL_Free(*pClient);
     *pClient = NULL;
@@ -266,7 +266,7 @@ int qcloud_iot_coap_init(CoAPClient *pClient, CoAPInitParams *pParams) {
         IOT_FUNC_EXIT_RC(QCLOUD_ERR_FAILURE);
     }
 
-    pClient->is_authed = -1;
+    pClient->is_authed = (char)-1;
 
     if (pParams->command_timeout < MIN_COMMAND_TIMEOUT)
     	pParams->command_timeout = MIN_COMMAND_TIMEOUT;

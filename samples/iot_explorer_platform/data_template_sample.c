@@ -40,11 +40,11 @@ static int running_state = 0;
 
 static MQTTEventType sg_subscribe_event_result = MQTT_EVENT_UNDEF;
 static bool sg_delta_arrived = false;
-static bool sg_dev_report_new_data = false;
+//static bool sg_dev_report_new_data = false;
 
 
-static char sg_shadow_update_buffer[2048];
-static size_t sg_shadow_update_buffersize = sizeof(sg_shadow_update_buffer) / sizeof(sg_shadow_update_buffer[0]);
+static char sg_data_report_buffer[2048];
+static size_t sg_data_report_buffersize = sizeof(sg_data_report_buffer) / sizeof(sg_data_report_buffer[0]);
 
 #ifdef EVENT_POST_ENABLED
 
@@ -72,6 +72,38 @@ static void event_post_cb(void *pClient, MQTTMessage *msg)
 	clearEventFlag(FLAG_EVENT0|FLAG_EVENT1|FLAG_EVENT2);
 }
 
+static void eventPostCheck(void *client)
+{
+	int i;
+	int rc;
+	uint32_t eflag;
+	sEvent *pEventList[EVENT_COUNTS];
+	uint8_t event_count;
+	
+	//事件上报
+	setEventFlag(FLAG_EVENT0|FLAG_EVENT1|FLAG_EVENT2);
+	eflag = getEventFlag();
+	if((EVENT_COUNTS > 0 )&& (eflag > 0)){	
+		event_count = 0;
+		for(i = 0; i < EVENT_COUNTS; i++){
+			if((eflag&(1<<i))&ALL_EVENTS_MASK){
+				 pEventList[event_count++] = &(g_events[i]);
+				 update_events_timestamp(&g_events[i], 1);
+				clearEventFlag(1<<i);
+			}
+		}	
+	
+		rc = qcloud_iot_post_event(client, sg_data_report_buffer, sg_data_report_buffersize, \
+											event_count, pEventList, event_post_cb);
+		if(rc < 0){
+			Log_e("events post failed: %d", rc);
+		}
+	}
+
+
+}
+
+
 #endif
 
 
@@ -94,17 +126,17 @@ static void event_handler(void *pclient, void *handle_context, MQTTEventMsg *msg
 
 		case MQTT_EVENT_SUBCRIBE_SUCCESS:
             sg_subscribe_event_result = msg->event_type;
-			Log_i("subscribe success, packet-id=%u", (unsigned int)packet_id);
+			Log_i("subscribe success, packet-id=%u", packet_id);
 			break;
 
 		case MQTT_EVENT_SUBCRIBE_TIMEOUT:
             sg_subscribe_event_result = msg->event_type;
-			Log_i("subscribe wait ack timeout, packet-id=%u", (unsigned int)packet_id);
+			Log_i("subscribe wait ack timeout, packet-id=%u", packet_id);
 			break;
 
 		case MQTT_EVENT_SUBCRIBE_NACK:
             sg_subscribe_event_result = msg->event_type;
-			Log_i("subscribe nack, packet-id=%u", (unsigned int)packet_id);
+			Log_i("subscribe nack, packet-id=%u", packet_id);
 			break;
 
 		case MQTT_EVENT_PUBLISH_SUCCESS:
@@ -159,6 +191,8 @@ static int _setup_connect_init_params(ShadowInitParams* initParams)
 	initParams->device_secret = sg_devInfo.devSerc;
 #endif
 
+	initParams->command_timeout = QCLOUD_IOT_MQTT_COMMAND_TIMEOUT;
+	initParams->keep_alive_interval_ms = QCLOUD_IOT_MQTT_KEEP_ALIVE_INTERNAL;
 
 	initParams->auto_connect_enable = 1;
 	initParams->shadow_type = eTEMPLATE;	
@@ -177,10 +211,10 @@ static int update_self_define_value(const char *pJsonDoc, DeviceProperty *pPrope
 	}
 	
 	/*convert const char* to char * */
-	char *pTemJsonDoc =HAL_Malloc(strlen(pJsonDoc));
+	char *pTemJsonDoc =HAL_Malloc(strlen(pJsonDoc) + 1);
 	strcpy(pTemJsonDoc, pJsonDoc);
 
-	char* property_data = LITE_json_value_of(pProperty->key, pTemJsonDoc);	
+	char* property_data = LITE_json_string_value_strip_transfer(pProperty->key, pTemJsonDoc);	
 	
     if(property_data != NULL){
 		if(pProperty->type == TYPE_TEMPLATE_STRING){
@@ -202,7 +236,7 @@ static int update_self_define_value(const char *pJsonDoc, DeviceProperty *pPrope
     return rc;
 }
 
-void OnDeltaTemplateCallback(void *pClient, const char *pJsonValueBuffer, uint32_t valueLength, DeviceProperty *pProperty) 
+static void OnDeltaTemplateCallback(void *pClient, const char *pJsonValueBuffer, uint32_t valueLength, DeviceProperty *pProperty) 
 {
     int i = 0;
 
@@ -226,7 +260,7 @@ void OnDeltaTemplateCallback(void *pClient, const char *pJsonValueBuffer, uint32
 }
 
 
-void OnShadowUpdateCallback(void *pClient, Method method, RequestAck requestAck, const char *pJsonDocument, void *pUserdata) {
+static void OnShadowUpdateCallback(void *pClient, Method method, RequestAck requestAck, const char *pJsonDocument, void *pUserdata) {
 	Log_i("recv shadow update response, response ack: %d", requestAck);
 }
 
@@ -254,13 +288,13 @@ static int _register_data_template_property(void *pshadow_client)
 
 
 /*用户需要实现的下行数据的业务逻辑,待用户实现*/
-void deal_down_stream_user_logic(ProductDataDefine   * pData)
+static void deal_down_stream_user_logic(ProductDataDefine   * pData)
 {
 	Log_d("someting about your own product logic wait to be done");
 }
 
 /*用户需要实现的上行数据的业务逻辑,此处仅供示例*/
-int deal_up_stream_user_logic(DeviceProperty *pReportDataList[], int *pCount)
+static int deal_up_stream_user_logic(DeviceProperty *pReportDataList[], int *pCount)
 {
 	int i, j;
 	
@@ -277,6 +311,8 @@ int deal_up_stream_user_logic(DeviceProperty *pReportDataList[], int *pCount)
 
 int data_template_thread(void) {
     int rc;
+	DeviceProperty *pReportDataList[TOTAL_PROPERTY_COUNT];
+	int ReportCont;
 
     //init connection
     ShadowInitParams init_params = DEFAULT_SHAWDOW_INIT_PARAMS;
@@ -315,7 +351,7 @@ int data_template_thread(void) {
         return rc;
     }
 
-	//进行Shdaow Update操作的之前，最后进行一次同步操作，否则可能本机上shadow version和云上不一致导致Shadow Update操作失败
+	//同步离线数据
 	rc = IOT_Shadow_Get_Sync(client, QCLOUD_IOT_MQTT_COMMAND_TIMEOUT);
 	if (rc != QCLOUD_ERR_SUCCESS) {
 		Log_e("get device shadow failed, err: %d", rc);
@@ -324,7 +360,12 @@ int data_template_thread(void) {
 
 	running_state = 1;
     while (IOT_Shadow_IsConnected(client) || rc == QCLOUD_ERR_MQTT_ATTEMPTING_RECONNECT 
-		|| rc == QCLOUD_ERR_MQTT_RECONNECTED || QCLOUD_ERR_SUCCESS == rc && running_state) {
+		|| rc == QCLOUD_ERR_MQTT_RECONNECTED || QCLOUD_ERR_SUCCESS == rc ) {
+
+		if(0 == running_state)
+		{
+			break;
+		}
 
         rc = IOT_Shadow_Yield(client, 200);
 
@@ -343,9 +384,9 @@ int data_template_thread(void) {
 			deal_down_stream_user_logic(&sg_ProductData);
 			
 			/*业务逻辑处理完后需要同步通知服务端:设备数据已更新，删除dseire数据*/	
-            int rc = IOT_Shadow_JSON_ConstructDesireAllNull(client, sg_shadow_update_buffer, sg_shadow_update_buffersize);
+            int rc = IOT_Shadow_JSON_ConstructDesireAllNull(client, sg_data_report_buffer, sg_data_report_buffersize);
             if (rc == QCLOUD_ERR_SUCCESS) {
-                rc = IOT_Shadow_Update_Sync(client, sg_shadow_update_buffer, sg_shadow_update_buffersize, QCLOUD_IOT_MQTT_COMMAND_TIMEOUT);
+                rc = IOT_Shadow_Update_Sync(client, sg_data_report_buffer, sg_data_report_buffersize, QCLOUD_IOT_MQTT_COMMAND_TIMEOUT);
                 sg_delta_arrived = false;
                 if (rc == QCLOUD_ERR_SUCCESS) {
                     Log_i("shadow update(desired) success");
@@ -355,86 +396,52 @@ int data_template_thread(void) {
 
             } else {
                 Log_e("construct desire failed, err: %d", rc);
-            }
-
-			sg_dev_report_new_data = true; //用户需要根据业务情况修改上报flag的赋值位置,此处仅为示例
+            }	
 		}	else{
 			Log_d("No delta msg received...");
 		}
 
 		/*设备上行消息,业务逻辑2入口*/
-		if(sg_dev_report_new_data){
+		/*delta消息是属性的desire和属性的report的差异集，收到deseire消息处理后，要report属性的状态*/
+		if(QCLOUD_ERR_SUCCESS == deal_up_stream_user_logic(pReportDataList, &ReportCont)){
 			
-			DeviceProperty *pReportDataList[TOTAL_PROPERTY_COUNT];
-			int ReportCont;
-		
-			/*delta消息是属性的desire和属性的report的差异集，收到deseire消息处理后，要report属性的状态*/
-			if(QCLOUD_ERR_SUCCESS == deal_up_stream_user_logic(pReportDataList, &ReportCont)){
-				
-				rc = IOT_Shadow_JSON_ConstructReportArray(client, sg_shadow_update_buffer, sg_shadow_update_buffersize, ReportCont, pReportDataList);
-		        if (rc == QCLOUD_ERR_SUCCESS) {
-		            rc = IOT_Shadow_Update(client, sg_shadow_update_buffer, sg_shadow_update_buffersize, 
-		                    OnShadowUpdateCallback, NULL, QCLOUD_IOT_MQTT_COMMAND_TIMEOUT);
-		            if (rc == QCLOUD_ERR_SUCCESS) {
-						sg_dev_report_new_data = false;
-		                Log_i("shadow update(reported) success");
-		            } else {
-		                Log_e("shadow update(reported) failed, err: %d", rc);
-		            }
-		        } else {
-		            Log_e("construct reported failed, err: %d", rc);
-		        }
+			rc = IOT_Shadow_JSON_ConstructReportArray(client, sg_data_report_buffer, sg_data_report_buffersize, ReportCont, pReportDataList);
+	        if (rc == QCLOUD_ERR_SUCCESS) {
+	            rc = IOT_Shadow_Update(client, sg_data_report_buffer, sg_data_report_buffersize, 
+	                    OnShadowUpdateCallback, NULL, QCLOUD_IOT_MQTT_COMMAND_TIMEOUT);
+	            if (rc == QCLOUD_ERR_SUCCESS) {
+	                Log_i("shadow update(reported) success");
+	            } else {
+	                Log_e("shadow update(reported) failed, err: %d", rc);
+	            }
+	        } else {
+	            Log_e("construct reported failed, err: %d", rc);
+	        }
 
-			}else{
-				 Log_d("no data need to be reported or someting goes wrong");
-			}
 		}else{
-			Log_d("No device data need to be reported...");
+			 Log_d("no data need to be reported");
 		}
 		
 #ifdef EVENT_POST_ENABLED	
-		int i;
-		uint32_t eflag;
-		sEvent *pEventList[EVENT_COUNTS];
-		uint8_t event_count;
-		
-		//事件上报
-		setEventFlag(FLAG_EVENT0|FLAG_EVENT1|FLAG_EVENT2);
-		eflag = getEventFlag();
-		if((EVENT_COUNTS > 0 )&& (eflag > 0)){	
-			event_count = 0;
-			for(i = 0; i < EVENT_COUNTS; i++){
-				if((eflag&(1<<i))&ALL_EVENTS_MASK){
-					 pEventList[event_count++] = &(g_events[i]);
-					 update_events_timestamp(&g_events[i], 1);
-					clearEventFlag(1<<i);
-				}
-			}	
-
-			rc = qcloud_iot_post_event(client, sg_shadow_update_buffer, sg_shadow_update_buffersize, \
-					 							event_count, pEventList, event_post_cb);
-			if(rc < 0){
-				Log_e("events post failed: %d", rc);
-			}
-		}
+		eventPostCheck(client);
 #endif
 
         HAL_SleepMs(3000);
     }
 
     rc = IOT_Shadow_Destroy(client);
+	running_state = 0;
+	Log_e("Something goes wrong or stoped");  
+	//rt_thread_delete(rt_thread_self());
 
     return rc;
 }
 
 
-int tc_data_template_example(int argc, char **argv)
+static int tc_data_template_example(int argc, char **argv)
 {
-    rt_err_t result;
     rt_thread_t tid;
     int stack_size = DATA_TEMPLATE_THREAD_STACK_SIZE;
-    int priority = 20;
-    char *stack;
 	
     //init log level
 	IOT_Log_Set_Level(DEBUG);
@@ -469,24 +476,11 @@ int tc_data_template_example(int argc, char **argv)
 		Log_e("Para err, usage: tc_data_template_example start/stop");
 		return 0;
 	}
-	  
+	  	
+	tid = rt_thread_create("data_template", (void (*)(void *))data_template_thread, 
+							NULL, stack_size, RT_THREAD_PRIORITY_MAX / 2 - 1, 10);  
 
-    tid = rt_malloc(RT_ALIGN(sizeof(struct rt_thread), 8) + stack_size);
-    if (!tid)
-    {
-        Log_d("no memory for thread: tc_data_template_example");
-        return -1;
-    }
-
-    stack = (char *)tid + RT_ALIGN(sizeof(struct rt_thread), 8);
-    result = rt_thread_init(tid,
-                            "data_template",
-                            (void *)data_template_thread, NULL, // fun, parameter
-                            stack, stack_size,        // stack, size
-                            priority, 2               //priority, tick
-                           );
-
-    if (result == RT_EOK)
+    if (tid != RT_NULL)
     {
         rt_thread_startup(tid);
     }

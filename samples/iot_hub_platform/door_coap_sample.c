@@ -112,7 +112,7 @@ static int _setup_connect_init_params(CoAPInitParams* initParams)
 }
 
 
-int coap_door_thread(void)
+static void coap_door_thread(void)
 {
 	int rc = QCLOUD_ERR_SUCCESS;
 	
@@ -121,16 +121,13 @@ int coap_door_thread(void)
 	rc = _setup_connect_init_params(&init_params);
 	if (rc != QCLOUD_ERR_SUCCESS) {
 		Log_e("init params err,rc=%d", rc);
-		return rc;
+		return;
 	}
 
 	void *coap_client = IOT_COAP_Construct(&init_params);
 	if (coap_client == NULL) {
 		Log_e("COAP Client construct failed.");
-		return QCLOUD_ERR_FAILURE;
-	}
-	else {
-		Log_e("%p", coap_client);
+		return;
 	}
 
     char* action = sg_cmd[0];
@@ -145,7 +142,7 @@ int coap_door_thread(void)
         if (size < 0 || size > sizeof(topic_content) - 1)
         {
             Log_e("payload content length not enough! content size:%d  buf size:%d", size, (int)sizeof(topic_content));
-            return -3;
+            return;
         }
 
         send_params.pay_load = topic_content;
@@ -172,21 +169,18 @@ int coap_door_thread(void)
     else
     {
         printUsage();
-        return -2;
+        return ;
     }
 
     IOT_COAP_Destroy(&coap_client);
 
-    return QCLOUD_ERR_SUCCESS;
+    return ;
 }
 
-int tc_coap_door_example(int argc, char **argv)
+static int tc_coap_door_example(int argc, char **argv)
 {
-    rt_err_t result;
     rt_thread_t tid;
     int stack_size = COAP_DOOR_THREAD_STACK_SIZE;
-    int priority = 20;
-    char *stack;
 
 	//init log level
 	IOT_Log_Set_Level(DEBUG);
@@ -199,22 +193,10 @@ int tc_coap_door_example(int argc, char **argv)
 	strncpy(sg_cmd[0], argv[1], 20);
 	strncpy(sg_cmd[1], argv[2], 20);
 		
-    tid = rt_malloc(RT_ALIGN(sizeof(struct rt_thread), 8) + stack_size);
-    if (!tid)
-    {
-        Log_d("no memory for thread: tc_coap_example");
-        return -1;
-    }
+	tid = rt_thread_create("coap_door_sample", (void (*)(void *))coap_door_thread, 
+							NULL, stack_size, RT_THREAD_PRIORITY_MAX / 2 - 1, 10);  
 
-    stack = (char *)tid + RT_ALIGN(sizeof(struct rt_thread), 8);
-    result = rt_thread_init(tid,
-                            "coap_door_sample",
-                            (void *)coap_door_thread, NULL, // fun, parameter
-                            stack, stack_size,        // stack, size
-                            priority, 2               //priority, tick
-                           );
-
-    if (result == RT_EOK)
+    if (tid != RT_NULL)
     {
         rt_thread_startup(tid);
     }

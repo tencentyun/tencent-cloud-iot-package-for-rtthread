@@ -46,7 +46,7 @@ void printUsage()
     HAL_Printf("2. ./door leave_home [targetDeviceName]\n");
 }
 
-bool log_handler(const char* message) {
+static bool log_handler(const char* message) {
 	//实现日志回调的写方法
 	//实现内容后请返回true
 	return false;
@@ -189,7 +189,7 @@ static int _publish_msg(void *client, char* action, char* targetDeviceName)
     return 0;
 }
 
-int mqtt_door_thread(void) 
+static void mqtt_door_thread(void) 
 {   
     int rc;
 
@@ -198,7 +198,7 @@ int mqtt_door_thread(void)
     rc = _setup_connect_init_params(&init_params);
 	if (rc != QCLOUD_ERR_SUCCESS) {
 		Log_e("init params err,rc=%d", rc);
-		return rc;
+		return;
 	}
 
     void *client = IOT_MQTT_Construct(&init_params);
@@ -206,7 +206,7 @@ int mqtt_door_thread(void)
         Log_i("Cloud Device Construct Success");
     } else {
         Log_e("Cloud Device Construct Failed");
-        return QCLOUD_ERR_FAILURE;
+        return;
     }
 
     //publish msg
@@ -237,17 +237,14 @@ exit:
 
     rc = IOT_MQTT_Destroy(&client);
 
-    return rc;
+    return ;
 }
 
 
-int tc_mqtt_door_example(int argc, char **argv)
+static int tc_mqtt_door_example(int argc, char **argv)
 {
-    rt_err_t result;
     rt_thread_t tid;
     int stack_size = MQTT_DOOR_THREAD_STACK_SIZE;
-    int priority = 20;
-    char *stack;
 	
 	//init log level
 	IOT_Log_Set_Level(DEBUG);
@@ -261,22 +258,10 @@ int tc_mqtt_door_example(int argc, char **argv)
 	strncpy(sg_cmd[0], argv[1], 20);
 	strncpy(sg_cmd[1], argv[2], 20);
 	
-    tid = rt_malloc(RT_ALIGN(sizeof(struct rt_thread), 8) + stack_size);
-    if (!tid)
-    {
-        Log_d("no memory for thread: tc_mqtt_door_example");
-        return -1;
-    }
+	tid = rt_thread_create("mqtt_door", (void (*)(void *))mqtt_door_thread, 
+							sg_cmd, stack_size, RT_THREAD_PRIORITY_MAX / 2 - 1, 10);  
 
-    stack = (char *)tid + RT_ALIGN(sizeof(struct rt_thread), 8);
-    result = rt_thread_init(tid,
-                            "mqtt_door",
-                            (void *)mqtt_door_thread, sg_cmd, // fun, parameter
-                            stack, stack_size,        // stack, size
-                            priority, 2               //priority, tick
-                           );
-
-    if (result == RT_EOK)
+    if (tid != RT_NULL)
     {
         rt_thread_startup(tid);
     }

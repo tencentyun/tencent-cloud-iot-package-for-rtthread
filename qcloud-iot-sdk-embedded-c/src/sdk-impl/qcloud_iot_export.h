@@ -24,7 +24,7 @@ extern "C" {
 #define QCLOUD_IOT_DEVICE_SDK_APPID                                	"21010406"
 
 /* IoT C-SDK version info */
-#define QCLOUD_IOT_DEVICE_SDK_VERSION                               "3.0.0"
+#define QCLOUD_IOT_DEVICE_SDK_VERSION                               "3.0.2"
 
 /* MQTT心跳消息发送周期, 单位:ms */
 #define QCLOUD_IOT_MQTT_KEEP_ALIVE_INTERNAL                         (240 * 1000)
@@ -43,17 +43,17 @@ extern "C" {
 #define MAX_SIZE_OF_CLIENT_ID                                       (80)
 
 /* 产品名称的最大长度 */
-#define MAX_SIZE_OF_PRODUCT_ID                                    	(14)
+#define MAX_SIZE_OF_PRODUCT_ID                                    	(10)
 
 /* 产品密钥的最大长度 ，动态设备注册需要*/
-#define MAX_SIZE_OF_PRODUCT_KEY                                    	(32)
+#define MAX_SIZE_OF_PRODUCT_SECRET                                  (48)
 
 /* 设备ID的最大长度 */
 #define MAX_SIZE_OF_DEVICE_NAME                                     (48)
 
 
 /* 设备密钥的最大长度 */
-#define MAX_SIZE_OF_DEVICE_SERC                                     (32)
+#define MAX_SIZE_OF_DEVICE_SERC                                     (48)
 
 /* 设备证书文件名的最大长度 */
 #define MAX_SIZE_OF_DEVICE_CERT_FILE_NAME                           (128)
@@ -101,7 +101,7 @@ typedef struct {
 #endif
 
 #ifdef DEV_DYN_REG_ENABLED
-	char	product_key[MAX_SIZE_OF_PRODUCT_KEY + 1];
+	char	product_secret[MAX_SIZE_OF_PRODUCT_SECRET + 1];
 #endif  	
 } DeviceInfo;
 

@@ -95,7 +95,7 @@ int coap_message_type_set(CoAPMessage *message, unsigned type) {
     {
         IOT_FUNC_EXIT_RC(QCLOUD_ERR_INVAL)
     }
-    message->type = type;
+    message->type = (CoAPMsgType)type;
 
     IOT_FUNC_EXIT_RC(QCLOUD_ERR_SUCCESS)
 }
