@@ -129,11 +129,11 @@ void HAL_MutexUnlock(_IN_ void *mutex)
 {
     int err_num;
 
-	err_num = rt_mutex_take((rt_mutex_t)mutex, RT_WAITING_FOREVER);
+	err_num = rt_mutex_release((rt_mutex_t)mutex);
 	 
     if (0 != err_num)
 	{
-        HAL_Printf("lock mutex failed");
+        HAL_Printf("unlock mutex failed");
     }
 
 }
