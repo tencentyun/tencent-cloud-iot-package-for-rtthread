@@ -24,7 +24,7 @@ extern "C" {
 #include "qcloud_iot_import.h"
 #include "qcloud_iot_export_error.h"
 #include "qcloud_iot_export_log.h"
-#include "qcloud_iot_sdk_impl_internal.h"
+#include "utils_param_check.h"
 
 #include "mbedtls/ssl.h"
 #include "mbedtls/entropy.h"
@@ -85,10 +85,10 @@ static void _free_mebedtls(TLSDataParams *pParams)
  *
  * @param pDataParams       TLS连接相关数据结构
  * @param pConnectParams    TLS证书密钥相关
- * @return                  返回QCLOUD_ERR_SUCCESS, 表示成功
+ * @return                  返回QCLOUD_RET_SUCCESS, 表示成功
  */
-
-#define DEBUG_LEVEL 3
+//#define MBEDTLS_DEBUG_C
+#define DEBUG_LEVEL 0
 static void _ssl_debug( void *ctx, int level,
                      const char *file, int line,
                      const char *str )
@@ -99,10 +99,10 @@ static void _ssl_debug( void *ctx, int level,
 
 static int _mbedtls_client_init(TLSDataParams *pDataParams, TLSConnectParams *pConnectParams) {
 
-    int ret = QCLOUD_ERR_SUCCESS;
+    int ret = QCLOUD_RET_SUCCESS;
 
 #if defined(MBEDTLS_DEBUG_C)
-		mbedtls_debug_set_threshold( DEBUG_LEVEL );
+	mbedtls_debug_set_threshold( DEBUG_LEVEL );
 #endif
 
 	
@@ -154,7 +154,7 @@ static int _mbedtls_client_init(TLSDataParams *pDataParams, TLSConnectParams *pC
 	}
 
 
-    return QCLOUD_ERR_SUCCESS;
+    return QCLOUD_RET_SUCCESS;
 }
 
 
@@ -164,7 +164,7 @@ static int _mbedtls_client_init(TLSDataParams *pDataParams, TLSConnectParams *pC
  * @param socket_fd  Socket描述符
  * @param host       服务器主机名
  * @param port       服务器端口地址
- * @return 返回QCLOUD_ERR_SUCCESS, 表示成功
+ * @return 返回QCLOUD_RET_SUCCESS, 表示成功
  */
 int _mbedtls_tcp_connect(mbedtls_net_context *socket_fd, const char *host, int port) {
     int ret = 0;
@@ -192,7 +192,7 @@ int _mbedtls_tcp_connect(mbedtls_net_context *socket_fd, const char *host, int p
     }
 #endif
 
-    return QCLOUD_ERR_SUCCESS;
+    return QCLOUD_RET_SUCCESS;
 }
 
 /**
@@ -215,19 +215,18 @@ int _qcloud_server_certificate_verify(void *hostname, mbedtls_x509_crt *crt, int
 }
 #endif
 
-
 uintptr_t HAL_TLS_Connect(TLSConnectParams *pConnectParams, const char *host, int port)
 {
     int ret = 0;
 
     TLSDataParams * pDataParams = (TLSDataParams *)HAL_Malloc(sizeof(TLSDataParams));
     
-    if ((ret = _mbedtls_client_init(pDataParams, pConnectParams)) != QCLOUD_ERR_SUCCESS) {
+    if ((ret = _mbedtls_client_init(pDataParams, pConnectParams)) != QCLOUD_RET_SUCCESS) {
         goto error;
     }
 
     Log_d(" Connecting to /%s/%d...", host, port);
-    if ((ret = _mbedtls_tcp_connect(&(pDataParams->socket_fd), host, port)) != QCLOUD_ERR_SUCCESS) {
+    if ((ret = _mbedtls_tcp_connect(&(pDataParams->socket_fd), host, port)) != QCLOUD_RET_SUCCESS) {
         goto error;
     }
 
@@ -359,7 +358,7 @@ int HAL_TLS_Write(uintptr_t handle, unsigned char *msg, size_t totalLen, uint32_
         return QCLOUD_ERR_SSL_WRITE_TIMEOUT;
     }
 
-    return QCLOUD_ERR_SUCCESS;
+    return QCLOUD_RET_SUCCESS;
 }
 
 int HAL_TLS_Read(uintptr_t handle, unsigned char *msg, size_t totalLen, uint32_t timeout_ms, size_t *read_len) 
@@ -393,7 +392,7 @@ int HAL_TLS_Read(uintptr_t handle, unsigned char *msg, size_t totalLen, uint32_t
     } while (*read_len < totalLen);
 
     if (totalLen == *read_len) {
-        return QCLOUD_ERR_SUCCESS;
+        return QCLOUD_RET_SUCCESS;
     }
 
     if (*read_len == 0) {

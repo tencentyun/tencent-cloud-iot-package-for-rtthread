@@ -35,7 +35,7 @@
 
 static uint64_t rtthread_get_time_ms(void)
 {
-    return HAL_UptimeMs();
+    return HAL_GetTimeMs();
 }
 
 static uint64_t rtthread_time_left(uint64_t t_end, uint64_t t_now)
@@ -189,7 +189,7 @@ int HAL_TCP_Write(uintptr_t fd, const unsigned char *buf, uint32_t len, uint32_t
 
     *written_len = (size_t)len_sent;
 
-    return len_sent > 0 ? QCLOUD_ERR_SUCCESS : ret;
+    return len_sent > 0 ? QCLOUD_RET_SUCCESS : ret;
 }
 
 

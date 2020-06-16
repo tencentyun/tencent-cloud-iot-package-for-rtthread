@@ -92,7 +92,7 @@ static void _dtls_debug( void *ctx, int level,
     
 static int _mbedtls_client_init(DTLSDataParams *pDataParams, DTLSConnectParams *pConnectParams)
 {
-	int ret = QCLOUD_ERR_SUCCESS;
+	int ret = QCLOUD_RET_SUCCESS;
 
 #if defined(MBEDTLS_DEBUG_C)
     mbedtls_debug_set_threshold( DEBUG_LEVEL );
@@ -177,7 +177,7 @@ static int _mbedtls_client_init(DTLSDataParams *pDataParams, DTLSConnectParams *
  * @param socket_fd  Socket描述符
  * @param host       服务器主机名
  * @param port       服务器端口地址
- * @return 返回QCLOUD_ERR_SUCCESS, 表示成功
+ * @return 返回QCLOUD_RET_SUCCESS, 表示成功
  */
 int _mbedtls_udp_connect(mbedtls_net_context *socket_fd, const char *host, int port) {
     int ret = 0;
@@ -201,24 +201,24 @@ int _mbedtls_udp_connect(mbedtls_net_context *socket_fd, const char *host, int p
         return QCLOUD_ERR_TCP_CONNECT;
     }
 #endif
-    return QCLOUD_ERR_SUCCESS;
+    return QCLOUD_RET_SUCCESS;
 }
 
 uintptr_t HAL_DTLS_Connect(DTLSConnectParams *pConnectParams, const char *host, int port)
 {
 	IOT_FUNC_ENTRY;
 
-    int ret = QCLOUD_ERR_SUCCESS;
+    int ret = QCLOUD_RET_SUCCESS;
     
     DTLSDataParams * pDataParams = (DTLSDataParams *)HAL_Malloc(sizeof(DTLSDataParams));
 
-    if ((ret = _mbedtls_client_init(pDataParams, pConnectParams)) != QCLOUD_ERR_SUCCESS) {
+    if ((ret = _mbedtls_client_init(pDataParams, pConnectParams)) != QCLOUD_RET_SUCCESS) {
 		goto error;
 	}
 
 	 Log_d(" Connecting to /%s/%d...", host, port);
 	
-    if ((ret = _mbedtls_udp_connect(&(pDataParams->socket_fd), host, port)) != QCLOUD_ERR_SUCCESS) {
+    if ((ret = _mbedtls_udp_connect(&(pDataParams->socket_fd), host, port)) != QCLOUD_RET_SUCCESS) {
 		goto error;
 	}
 
@@ -348,7 +348,7 @@ int HAL_DTLS_Write(uintptr_t handle, const unsigned char *data, size_t datalen, 
 	}
 
 	*written_len = rc;
-    rc = QCLOUD_ERR_SUCCESS;
+    rc = QCLOUD_RET_SUCCESS;
     
     IOT_FUNC_EXIT_RC(rc);
 }
@@ -388,7 +388,7 @@ int HAL_DTLS_Read(uintptr_t handle, unsigned char *data, size_t datalen, unsigne
 		}
 	} else {
 		*read_len = rc;
-		rc = QCLOUD_ERR_SUCCESS;
+		rc = QCLOUD_RET_SUCCESS;
 	}
     
     return rc;

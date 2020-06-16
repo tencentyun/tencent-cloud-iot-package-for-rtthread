@@ -22,9 +22,7 @@ extern "C" {
 #include <string.h>
 #include "qcloud_iot_import.h"
 
-static char now_time_str[20] = {0};
-
-uint32_t HAL_UptimeMs(void)
+uint32_t HAL_GetTimeMs(void)
 {
 #if (RT_TICK_PER_SECOND == 1000)
 			/* #define RT_TICK_PER_SECOND 1000 */
@@ -42,21 +40,18 @@ uint32_t HAL_UptimeMs(void)
 /*Get timestamp*/
 long HAL_Timer_current_sec(void) 
 {
-	//return GetTimeStampByAt(NULL);
-	
-	return HAL_UptimeMs()/1000;
+    return HAL_GetTimeMs() / 1000;
 }
 
-
-char* HAL_Timer_current(void) 
+char *HAL_Timer_current(char *time_str)
 {
-	long time_sec;
-	
-	time_sec = HAL_Timer_current_sec();
-	memset(now_time_str, 0, 20);
-	snprintf(now_time_str, 20, "%d",time_sec);
-	
-	return now_time_str;
+    long time_sec;
+
+    time_sec = HAL_Timer_current_sec();
+    memset(time_str, 0, 20);
+    snprintf(time_str, 20, "%ld", time_sec);
+
+    return time_str;
 }
 
 
@@ -64,8 +59,8 @@ char* HAL_Timer_current(void)
 bool HAL_Timer_expired(Timer *timer) 
 {
     uint32_t now_ts;
-	
-	now_ts	= HAL_UptimeMs();
+
+    now_ts  = HAL_GetTimeMs();
 
 
     return (now_ts > timer->end_time)?true:false;
@@ -73,19 +68,19 @@ bool HAL_Timer_expired(Timer *timer)
 
 void HAL_Timer_countdown_ms(Timer *timer, unsigned int timeout_ms) 
 {
-	timer->end_time = HAL_UptimeMs();
-    timer->end_time += timeout_ms;	
+    timer->end_time = HAL_GetTimeMs();
+    timer->end_time += timeout_ms;
 }
 
 void HAL_Timer_countdown(Timer *timer, unsigned int timeout) 
 {
-    timer->end_time = HAL_UptimeMs();
-	timer->end_time += timeout*1000;
+    timer->end_time = HAL_GetTimeMs();
+    timer->end_time += timeout * 1000;
 }
 
 int HAL_Timer_remain(Timer *timer) 
 {
-	 return (int)(timer->end_time - HAL_UptimeMs()); 	
+    return (int)(timer->end_time - HAL_GetTimeMs());
 }
 
 void HAL_Timer_init(Timer *timer) 
