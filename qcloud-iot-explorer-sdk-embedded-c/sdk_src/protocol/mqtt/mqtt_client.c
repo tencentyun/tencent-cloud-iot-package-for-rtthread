@@ -98,7 +98,9 @@ void *IOT_MQTT_Construct(MQTTInitParams *pParams)
                                        (unsigned char *)pParams->device_secret, src_len);
     connect_params.device_secret     = (char *)mqtt_client->psk_decode;
     connect_params.device_secret_len = len;
+#ifdef MULTITHREAD_ENABLED	
     mqtt_client->yield_thread_running = false;
+#endif
     if (rc != QCLOUD_RET_SUCCESS) {
         Log_e("Device secret decode err, secret:%s", pParams->device_secret);
         qcloud_iot_mqtt_fini(mqtt_client);

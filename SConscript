@@ -34,7 +34,6 @@ src_base += Glob('qcloud-iot-explorer-sdk-embedded-c/sdk_src/network/*.c')
 src_base += Glob('qcloud-iot-explorer-sdk-embedded-c/sdk_src/network/socket/*.c')
 src_base += Glob('qcloud-iot-explorer-sdk-embedded-c/sdk_src/network/tls/*.c')
 src_base += Glob('ports/rtthread/*.c')
-SrcRemove(src_base, 'qcloud-iot-explorer-sdk-embedded-c/sdk_src/utils/qcloud_iot_ca.c')	
 SrcRemove(src_base, 'ports/rtthread/HAL_UDP_rtthread.c')
 
 CPPDEFINES += ['MQTT_COMM_ENABLED', 'AUTH_MODE_KEY']
@@ -54,7 +53,6 @@ if GetDepend(['PKG_USING_TENCENT_IOT_EXPLORER_GATEWAY']):
 	
 #TLS used
 if GetDepend(['PKG_USING_TENCENT_IOT_EXPLORER_TLS']):
-	src_base += Glob('qcloud-iot-explorer-sdk-embedded-c/sdk_src/utils/qcloud_iot_ca.c')
 	src_base += Glob('ports/ssl/HAL_TLS_mbedtls.c')	
 	if rtconfig.CROSS_TOOL == 'keil' or rtconfig.CROSS_TOOL == 'iar':
 		CPPDEFINES += ['MBEDTLS_CONFIG_FILE=<tc_tls_config.h>']			
