@@ -1,6 +1,6 @@
 ##  Tencent IOT SDK for rt-thread Package 
 ## 1 介绍
-Tencent IOT SDK for rt-thread Package 是基于腾讯云物联网开发平台（IoT Explorer）[设备端 C-SDK] (https://github.com/tencentyun/qcloud-iot-explorer-sdk-embedded-c.git)在RThread环境开发的软件包，配合平台对设备数据模板化的定义，实现和云端基于数据模板协议的数据交互框架，开发者基于IoT_Explorer C-SDK数据模板框架，通过脚本自动生成模板代码，快速实现设备和平台、设备和应用之间的数据交互。
+Tencent IOT SDK for rt-thread Package 是基于腾讯云物联网开发平台[设备端 C-SDK] (https://github.com/tencentyun/qcloud-iot-explorer-sdk-embedded-c.git)在RThread环境开发的软件包，配合平台对设备数据模板化的定义，实现和云端基于数据模板协议的数据交互框架，开发者基于IoT_Explorer C-SDK数据模板框架，通过脚本自动生成模板代码，快速实现设备和平台、设备和应用之间的数据交互。
 
 ### 1.1 SDK架构图
 ![sdk-architecture](https://main.qcloudimg.com/raw/583a783ca9189bd3beb9df0991dc0bec.jpg)
